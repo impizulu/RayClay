@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <!-- Responsive: match the device width and let the canvas fill it, so the
+         RayClay layout (Clay flexbox) re-flows on desktop / tablet / phone. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>RayClay — WebAssembly gallery</title>
+    <!-- Inline data: icon. With NO rel="icon" the browser silently requests
+         /favicon.ico, which 404s and logs a console error on every page - and
+         "zero console errors on load" is an assertable bar for the web gate. A
+         data: URI keeps the page self-contained: it fetches nothing external. -->
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3.5' fill='%237c5cff'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%2322d3ee'/%3E%3Crect x='3' y='8' width='10' height='4' rx='1' fill='%23eef2ff'/%3E%3C/svg%3E">
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden;
+                   background: #1e1e1e; font-family: system-ui, sans-serif; }
+      /* The canvas must carry no border/padding or mouse coords drift. It fills
+         the viewport; the C side reads the framebuffer size each frame and Clay
+         re-lays-out, so resizing the window/device reshapes the UI. */
+      canvas#canvas { display: block; width: 100vw; height: 100vh;
+                      border: 0; outline: none; background: #1e1e1e; }
+      /* Centred loading status, hidden once the first frame paints. */
+      #rc-status { position: fixed; inset: 0; display: flex; align-items: center;
+                   justify-content: center; color: #9aa0a6; font-size: 14px;
+                   pointer-events: none; transition: opacity .3s; }
+      /* Fatal state: a readable, persistent card (WebGL2 missing / boot error)
+         instead of a silent black canvas. */
+      #rc-status.error { color: #e6e6e6; pointer-events: auto; transition: none; }
+      #rc-status.error .rc-card { max-width: 32rem; margin: 1.5rem; padding: 1.25rem 1.5rem;
+                   background: #2b2b2b; border: 1px solid #444; border-radius: 8px;
+                   line-height: 1.5; }
+      #rc-status.error .rc-card b { color: #f28b82; }
+    </style>
+  </head>
+  <body>
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <div id="rc-status">Loading RayClay…</div>
+    <script>
+      var statusEl = document.getElementById('rc-status');
+      var booted   = false;
+
+      // Surface a fatal problem as a readable card rather than a blank canvas.
+      // `detail` is set as TEXT (never HTML), so a runtime error message that
+      // contains '<' or '&' renders literally instead of breaking the markup.
+      function rcFatal(title, detail) {
+        if (!statusEl) return;
+        statusEl.className = 'error';
+        var card = document.createElement('div');
+        card.className = 'rc-card';
+        var head = document.createElement('b');
+        head.textContent = title;
+        card.appendChild(head);
+        if (detail) {
+          card.appendChild(document.createElement('br'));
+          card.appendChild(document.createTextNode(detail));
+        }
+        statusEl.innerHTML = '';
+        statusEl.appendChild(card);
+        statusEl.style.opacity = '1';
+      }
+      function rcErrored() { return statusEl && statusEl.classList.contains('error'); }
+
+      // WebGL2 is required (sokol GLES3 -> WebGL2). Probe with a throwaway canvas
+      // BEFORE boot so an unsupported browser gets a clear message, not a black
+      // canvas + cryptic console errors. The probe context is separate from the
+      // app canvas, so it does not interfere with the module's own GL context.
+      function hasWebGL2() {
+        try { return !!document.createElement('canvas').getContext('webgl2'); }
+        catch (e) { return false; }
+      }
+
+      var Module = {
+        canvas: document.getElementById('canvas'),
+        print:    function (t) { console.log(t); },
+        printErr: function (t) { console.error(t); },
+        setStatus: function (t) { if (statusEl && !rcErrored()) statusEl.textContent = t || ''; },
+        // First run dependency drained => the module is live; fade the overlay.
+        onRuntimeInitialized: function () {
+          booted = true;
+          if (statusEl && !rcErrored()) {
+            statusEl.style.opacity = '0';
+            setTimeout(function () { if (statusEl && !rcErrored()) statusEl.remove(); }, 400);
+          }
+        }
+      };
+
+      if (!hasWebGL2()) {
+        rcFatal('WebGL2 is required.',
+                'This RayClay demo renders through WebGL2, which this browser does ' +
+                'not provide. Try a recent Chrome, Firefox, Edge, or Safari with ' +
+                'hardware acceleration enabled.');
+      }
+
+      // A crash during boot should show, not blank the page. Emscripten's wasm boot
+      // is promise-based (instantiateStreaming / async init), so a failed .wasm fetch
+      // surfaces as an unhandled rejection, NOT an 'error' event - handle both.
+      function rcBootFail(detail) {
+        if (!booted && !rcErrored())
+          rcFatal('RayClay failed to start.', detail || 'See the browser console for details.');
+      }
+      window.addEventListener('error', function (e) {
+        rcBootFail(e && e.message ? String(e.message) : '');
+      });
+      window.addEventListener('unhandledrejection', function (e) {
+        rcBootFail(e && e.reason && e.reason.message ? String(e.reason.message) : '');
+      });
+
+      // A lost WebGL context is fatal in v1.0: RayClay frees CPU-side image
+      // pixels after GPU upload and never re-runs sg_setup, so its resources
+      // cannot be rebuilt (context restore is a v1.1 item - reintroduce
+      // preventDefault() + a 'webglcontextrestored' handler with it). Without
+      // preventDefault() the browser's default - no restoration - matches that
+      // reality; show a persistent reload card instead of a false promise. Boot
+      // removes the status overlay from the DOM, so re-attach it first. No
+      // auto-reload: loss often recurs (driver crash loop) and reload discards
+      // app state - the user's own reload is the recovery gesture.
+      Module.canvas.addEventListener('webglcontextlost', function () {
+        if (statusEl && !statusEl.isConnected) document.body.appendChild(statusEl);
+        rcFatal('Graphics context lost.',
+                'The GPU context was lost (driver reset or resource pressure) and ' +
+                'this build cannot rebuild its graphics resources. Reload the page ' +
+                'to continue.');
+      }, false);
+
+      // On the web the BROWSER owns zoom (the native Ctrl+wheel zoom is compiled
+      // out), but emscripten's GLFW shim preventDefault()s every canvas wheel
+      // event - including Ctrl+wheel and trackpad pinch (which arrives as a
+      // ctrlKey wheel) - so that gesture would zoom NOTHING (empirically
+      // confirmed via a trusted-input probe). The shim registers CAPTURE-phase
+      // listeners, and capture listeners at the target fire before non-capture
+      // ones regardless of registration order - so this exemption must also be
+      // capture-phase; registered at parse time (before the shim attaches at
+      // runtime init) it then runs first and stopImmediatePropagation() keeps
+      // ctrl-wheels away from the shim: the browser's page zoom engages and the
+      // app never sees a zoom wheel. 'mousewheel' covers the shim's legacy
+      // registration on engines that still deliver it.
+      function rcExemptZoomWheel(e) {
+        if (e.ctrlKey) e.stopImmediatePropagation();
+      }
+      Module.canvas.addEventListener('wheel', rcExemptZoomWheel,
+                                     { passive: true, capture: true });
+      Module.canvas.addEventListener('mousewheel', rcExemptZoomWheel,
+                                     { passive: true, capture: true });
+
+      // The canvas fills the viewport via CSS (above). Sizing is driven from C:
+      // RayClay registers a window-resize callback that reads this CSS box and
+      // pushes it into GLFW; the C side then sizes the drawing buffer to
+      // CSS px x devicePixelRatio (device-pixel crisp on HiDPI and page zoom,
+      // re-applied on DPR change), so the layout re-flows when the window or
+      // device scale changes. Keep the canvas stretched to the page even if
+      // the GL backend pins an inline size.
+      window.addEventListener('resize', function () {
+        Module.canvas.style.width = '100vw';
+        Module.canvas.style.height = '100vh';
+      });
+    </script>
+    {{{ SCRIPT }}}
+  </body>
+</html>

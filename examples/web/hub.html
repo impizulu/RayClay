@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<!--
+    hub.html - the landing page for the RayClay web demos.
+
+    Every app linked from here is the SAME C source that builds a native desktop
+    window; nothing is a mock-up, a video, or a screenshot. The page is deliberately
+    self-contained (no external fonts, scripts, or stylesheets) so it can be served
+    verbatim from a static host with no build step and no network fetches.
+
+    Deployed as _site/index.html by .github/workflows/web-pages.yml.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RayClay: C GUI demos, running in your browser</title>
+<!-- Inline data: icon, matching rayclay/web/shell.html. With NO rel="icon" the browser
+     silently requests /favicon.ico, which 404s and logs a console error - and because a
+     favicon is fetched once per ORIGIN, that error lands on whichever page loads first,
+     which makes it look like a fault in THAT page. Declaring the icon inline keeps
+     "zero console errors on load" assertable across the whole site. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3.5' fill='%237c5cff'/%3E%3Crect x='3' y='4' width='10' height='2' rx='1' fill='%2322d3ee'/%3E%3Crect x='3' y='8' width='10' height='4' rx='1' fill='%23eef2ff'/%3E%3C/svg%3E">
+<style>
+  :root {
+    --bg: #0b1020;  --surface: #151c32;  --surface-2: #1b2440;  --line: #2a3557;
+    --text: #eef2ff; --muted: #94a3c4;   --accent: #7c5cff;      --accent-2: #22d3ee;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 0 24px 72px;
+    background: radial-gradient(1200px 600px at 50% -200px, #1c2547 0%, var(--bg) 60%);
+    color: var(--text); min-height: 100vh;
+    font: 16px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; }
+  header { padding: 72px 0 40px; text-align: center; }
+  h1 { margin: 0 0 12px; font-size: clamp(2rem, 5vw, 3.2rem); letter-spacing: -0.02em; }
+  .tag {
+    display: inline-block; margin-bottom: 20px; padding: 5px 13px;
+    background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px;
+    color: var(--muted); font-size: 0.8rem;
+  }
+  .lede { max-width: 640px; margin: 0 auto; color: var(--muted); font-size: 1.06rem; }
+  .lede strong { color: var(--text); font-weight: 600; }
+
+  pre {
+    max-width: 640px; margin: 28px auto 0; padding: 18px 20px; overflow-x: auto;
+    background: #080c18; border: 1px solid var(--line); border-radius: 12px;
+    color: #c7d2fe; font: 13px/1.7 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    text-align: left;
+  }
+  pre .c { color: #64748b; }
+
+  h2 {
+    margin: 56px 0 6px; font-size: 1.28rem; letter-spacing: -0.01em;
+    padding-bottom: 10px; border-bottom: 1px solid var(--line);
+  }
+  h2 span { color: var(--muted); font-size: 0.85rem; font-weight: 400; }
+
+  .grid { display: grid; gap: 16px; margin-top: 22px;
+          grid-template-columns: repeat(auto-fill, minmax(268px, 1fr)); }
+  .card {
+    display: block; padding: 20px; text-decoration: none; color: inherit;
+    background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+    transition: transform .16s ease, border-color .16s ease, background .16s ease;
+  }
+  .card:hover { transform: translateY(-3px); border-color: var(--accent); background: var(--surface-2); }
+  .card:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  .card h3 { margin: 0 0 6px; font-size: 1.03rem; }
+  .card p  { margin: 0; color: var(--muted); font-size: 0.89rem; line-height: 1.55; }
+  .card .k {
+    display: inline-block; margin-bottom: 10px; padding: 2px 8px; border-radius: 6px;
+    background: rgba(124,92,255,.16); color: #c4b5fd;
+    font: 600 0.68rem/1.5 ui-monospace, Menlo, monospace; letter-spacing: .04em;
+  }
+  .card.lead { border-color: var(--accent); background: linear-gradient(160deg, #221a52, var(--surface)); }
+
+  footer { margin-top: 64px; padding-top: 28px; border-top: 1px solid var(--line);
+           color: var(--muted); font-size: 0.86rem; text-align: center; }
+  footer a { color: var(--accent-2); }
+  .note { max-width: 720px; margin: 18px auto 0; }
+
+  @media (prefers-reduced-motion: reduce) { .card { transition: none; } .card:hover { transform: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="tag">WebAssembly · no plugin · no install</div>
+    <h1>C apps that run in your browser</h1>
+    <p class="lede">
+      RayClay is a <strong>pure-C99 immediate-mode GUI library</strong>. Every demo below is the
+      <strong>same C source</strong> that compiles to a native desktop window, rebuilt for the web with
+      <strong>one command and no <code>#ifdef</code></strong>. What you are about to click is not a video
+      or a screenshot. It is the app.
+    </p>
+<pre><span class="c">/* the whole program */</span>
+#include "rayclay.h"
+int main(void) { return rcRunApp(NULL); }
+
+<span class="c">$ cmake --preset web        # -&gt; a page you can host anywhere</span></pre>
+  </header>
+
+  <h2>Start here <span>: the two-line program</span></h2>
+  <div class="grid">
+    <a class="card lead" href="hello.html">
+      <span class="k">ex00</span>
+      <h3>Hello, RayClay</h3>
+      <p>The two lines above, running. A window, a font, a render loop, with no assets on disk and
+         nothing to configure.</p>
+    </a>
+  </div>
+
+  <h2>The showcase apps <span>: real multi-file apps, not snippets</span></h2>
+  <div class="grid">
+    <a class="card" href="messenger.html">
+      <span class="k">bench</span>
+      <h3>Messenger</h3>
+      <p>Threaded chat: a scrolling conversation list, message bubbles that wrap to their content, and a
+         live composer.</p>
+    </a>
+    <a class="card" href="notes.html">
+      <span class="k">bench</span>
+      <h3>Notes</h3>
+      <p>A notes editor built on real text editing: multi-line fields, a caret, selection, and a rich
+         font ladder.</p>
+    </a>
+    <a class="card" href="trader.html">
+      <span class="k">bench</span>
+      <h3>Trading terminal</h3>
+      <p>A dense financial UI: a candlestick chart drawn from primitives, gradients, soft shadows, and a
+         hero type scale.</p>
+    </a>
+    <a class="card" href="platformer.html">
+      <span class="k">bench</span>
+      <h3>Platformer</h3>
+      <p>An auto-runner: a parallax scene, coins, and a jump on tap or click. A GUI library doing a game
+         loop at 60 fps.</p>
+    </a>
+    <a class="card" href="photos.html">
+      <span class="k">bench</span>
+      <h3>Photo gallery</h3>
+      <p>An image viewer whose thumbnails are <em>generated at runtime</em>: a clipped scroll grid, an
+         aspect-fit detail pane, and an editable caption.</p>
+    </a>
+    <a class="card" href="opsdash.html">
+      <span class="k">bench</span>
+      <h3>Fleet operations</h3>
+      <p>A service dashboard: 48 status cards that never change sitting under a telemetry band that
+         changes every frame. The mostly-static screen most real tools actually are.</p>
+    </a>
+  </div>
+  <p class="note" style="color:var(--muted); font-size:.88rem;">
+    These six are the project's benchmark suite as well as its showcase: the same source that ships is the
+    source we measure. Nothing here is written twice.
+  </p>
+
+  <h2>Forty years of interface, one API <span>: the same widgets, five eras</span></h2>
+  <div class="grid">
+    <a class="card" href="gui1980s.html">
+      <span class="k">ex01</span>
+      <h3>1980s: 1-bit desktop</h3>
+      <p>A monochrome calculator: hard edges, hand-drawn chrome, not an anti-aliased pixel in sight.</p>
+    </a>
+    <a class="card" href="gui1990s.html">
+      <span class="k">ex02</span>
+      <h3>1990s: silver bevels</h3>
+      <p>A settings dialog in full 3D-bevel regalia, tabs and all.</p>
+    </a>
+    <a class="card" href="gui2000s.html">
+      <span class="k">ex03</span>
+      <h3>2000s: gloss and gel</h3>
+      <p>A media player from the age of glossy gradients and drop shadows.</p>
+    </a>
+    <a class="card" href="gui2010s.html">
+      <span class="k">ex04</span>
+      <h3>2010s: flat and material</h3>
+      <p>A tasks app: flat colour, cards, and a floating action button.</p>
+    </a>
+    <a class="card" href="dashboard.html">
+      <span class="k">ex05</span>
+      <h3>2020s: the dark dashboard</h3>
+      <p>A modern SaaS console: soft shadows, rounded surfaces, and a muted dark palette.</p>
+    </a>
+  </div>
+  <p class="note" style="color:var(--muted); font-size:.88rem;">
+    Five decades of visual language, drawn by one immediate-mode API and one renderer. The period chrome is
+    deliberate art, not a platform theme; RayClay ships no OS look-alike.
+  </p>
+
+  <h2>Everything at once <span>: the gallery, the inspector and the monitor</span></h2>
+  <div class="grid">
+    <a class="card" href="gallery.html">
+      <span class="k">ex10</span>
+      <h3>Widget gallery</h3>
+      <p>Every widget in the library on one page, plus live re-tintable icons: an icon's colour is just an
+         argument you pass each frame.</p>
+    </a>
+    <a class="card" href="inspector.html">
+      <span class="k">ex12</span>
+      <h3>Live inspector</h3>
+      <p>The library watching itself: a draggable split pane, live fps and frame-time charts, and a table log
+         that follows its own tail, fed by RayClay's own diagnostics.</p>
+    </a>
+    <a class="card" href="sysmon.html">
+      <span class="k">ex20</span>
+      <h3>System monitor</h3>
+      <p>A sortable virtualized process table under live load charts, and a branded titlebar that folds to a
+         drag rail on a keystroke. On the desktop that band carries the real window controls; here the
+         browser tab is the chrome, so it draws and does nothing. Same source, one target doing less.</p>
+    </a>
+    <a class="card" href="explorer.html">
+      <span class="k">ex21</span>
+      <h3>Data explorer</h3>
+      <p>An analytics workbench over a 12,000-row exoplanet catalogue. Filter from the rail and a year chart,
+         a radius histogram, a scatter plot and a sortable 12,000-row table all follow: one dataset, many
+         views, driven through an index array that never copies or reorders a single record.</p>
+    </a>
+    <a class="card" href="reader.html">
+      <span class="k">ex22</span>
+      <h3>Documentation reader</h3>
+      <p>The one example that ships its own typography: a real family ladder registered a weight at a time,
+         a reading column held to a comfortable line length as the window resizes, and a table of contents
+         that folds away when there is no room for it.</p>
+    </a>
+    <a class="card" href="inbox.html">
+      <span class="k">ex23</span>
+      <h3>Issue inbox</h3>
+      <p>The rail / list / detail shape every desktop app is built on, over 100,000 issues. Type in the
+         filter and the whole list re-selects; scroll it and about thirty elements are ever declared, because
+         the cost of drawing is set by the window rather than by the dataset.</p>
+    </a>
+    <a class="card" href="svg.html">
+      <span class="k">ex24</span>
+      <h3>SVG live</h3>
+      <p>The same artwork drawn three ways at once: pointed at by path (<code>rcSvg</code>, one line in the
+         layout, no state), drawn from a handle you loaded yourself, and compiled in from a generated header.
+         They are indistinguishable on purpose: the choice is about your build, not about how it looks. Press
+         <em>Unload</em> and only the handle you own goes away.</p>
+    </a>
+  </div>
+
+  <footer>
+    <p>
+      Resize the window; the layout reflows, because it is a real layout engine, not a scaled bitmap.
+    </p>
+    <p>
+      <a href="https://github.com/impizulu/RayClay">Source on GitHub</a>
+    </p>
+  </footer>
+
+</div>
+</body>
+</html>

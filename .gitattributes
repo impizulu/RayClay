@@ -1,0 +1,21 @@
+* text=auto eol=lf
+
+*.c     text
+*.h     text
+*.cpp   text
+*.m     text
+*.md    text
+*.txt   text
+*.cmake text
+*.yml   text
+CMakeLists.txt text
+
+*.ttf  binary
+*.otf  binary
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.ico  binary
+
+rayclay.h  linguist-language=C
+glfw/**    linguist-vendored=true
