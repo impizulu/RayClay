@@ -1,0 +1,54 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Default (Debug; the library, plus examples/tests if this branch carries them)",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "desktop",
+      "displayName": "Desktop (native window; library + examples - the one-command desktop build, mirrors `web`)",
+      "binaryDir": "${sourceDir}/build-desktop",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "RC_BUILD_TESTS": "OFF",
+        "RC_BUILD_EXAMPLES": "ON"
+      }
+    },
+    {
+      "name": "web",
+      "displayName": "Web / WASM (emscripten; GLES3 -> WebGL2, every example -> its own page)",
+      "description": "Needs the Emscripten SDK ACTIVATED, not merely installed: `source /path/to/emsdk/emsdk_env.sh` sets $EMSDK, and this preset resolves the toolchain through it. Without that the configure fails on an unreadable toolchain file rather than on anything to do with RayClay.",
+      "binaryDir": "${sourceDir}/build-web",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "MinSizeRel",
+        "RC_BUILD_TESTS": "OFF",
+        "RC_BUILD_EXAMPLES": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "description": "Every build preset carries an explicit `jobs`. WHY: with the Unix Makefiles generator a bare `--parallel` passes `make -j` with NO argument, which is UNBOUNDED - it is NOT one job per core. Make then spawns every recipe the dependency graph allows, which has OOM-frozen a 30 GB machine. CAVEAT: `jobs` is honoured only by `cmake --build --preset <name>`; it is BYPASSED by `cmake --build <dir> --parallel`, so pass an explicit count with the directory form.",
+      "jobs": 8
+    },
+    { "name": "desktop", "configurePreset": "desktop", "jobs": 8 },
+    { "name": "web", "configurePreset": "web", "jobs": 8 }
+  ],
+  "testPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default",
+      "output": { "outputOnFailure": true }
+    }
+  ]
+}
